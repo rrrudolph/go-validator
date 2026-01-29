@@ -1,0 +1,8 @@
+# Exclude sample/reference config (fully commented, would break build)
+sample-client.config.go
+.git
+.gitignore
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
