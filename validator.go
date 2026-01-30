@@ -102,12 +102,10 @@ func ValidateRangeOrder(keys RangeKeys) ValidatorFunc {
 				ctx.AddErrorf("%s (%.f) must not be greater than %s (%.f)", keys.Lower, lower, keys.Upper, upper)
 			}
 
-		case time.Time:
-			upper, _ := upperVal.(time.Time)
-			if lower.After(upper) {
-				ctx.AddErrorf("%s (%s) must not be after %s (%s)",
-					keys.Lower, lower.Format("2006-01-02"),
-					keys.Upper, upper.Format("2006-01-02"))
+		case string:
+			upper, _ := upperVal.(string)
+			if strings.Compare(lower, upper) > 0 {
+				ctx.AddErrorf("%s (%s) must not be after %s (%s)", keys.Lower, lower, keys.Upper, upper)
 			}
 
 		default:
@@ -543,7 +541,7 @@ func validateScalar(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) an
 		}
 		parsed = node.Float()
 
-	case TypeFullDate: // YYYY-MM-DD
+	case TypeFullDate: // YYYY-MM-DD — validate and store normalized string
 		if node.Type != gjson.String {
 			ctx.AddError("must be a string in YYYY-MM-DD format")
 			return nil
@@ -554,9 +552,9 @@ func validateScalar(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) an
 			ctx.AddErrorf("invalid format (expected YYYY-MM-DD): %q", s)
 			return nil
 		}
-		parsed = t
+		parsed = t.Format("2006-01-02")
 
-	case TypeMonthDate: // YYYY-MM → normalize to YYYY-MM-01
+	case TypeMonthDate: // YYYY-MM — validate and store normalized string
 		if node.Type != gjson.String {
 			ctx.AddError("must be a string")
 			return nil
@@ -567,11 +565,9 @@ func validateScalar(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) an
 			ctx.AddErrorf("invalid format (expected YYYY-MM): %q", s)
 			return nil
 		}
-		// Normalize to first day of month
-		t = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
-		parsed = t
+		parsed = t.Format("2006-01")
 
-	case TypeYearDate: // YYYY → normalize to YYYY-01-01
+	case TypeYearDate: // YYYY — validate and store string
 		if node.Type != gjson.String {
 			ctx.AddError("year must be a string (YYYY)")
 			return nil
@@ -581,66 +577,47 @@ func validateScalar(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) an
 			ctx.AddErrorf("invalid format (expected YYYY): %q", s)
 			return nil
 		}
-		y, err := strconv.Atoi(s)
-		if err != nil {
+		if _, err := strconv.Atoi(s); err != nil {
 			ctx.AddErrorf("invalid year: %q", s)
 			return nil
 		}
-		parsed = time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
+		parsed = s
 
-	case TypeDayOrMonthDate: // YYYY-MM-DD or YYYY-MM → normalize month to YYYY-MM-01
+	case TypeDayOrMonthDate: // YYYY-MM-DD or YYYY-MM — validate and store normalized string
 		if node.Type != gjson.String {
 			ctx.AddError("must be a string")
 			return nil
 		}
 		s := node.String()
-		var t time.Time
-		var err error
-
-		// Try full date first
-		t, err = time.Parse("2006-01-02", s)
-		if err == nil {
-			parsed = t
+		if t, err := time.Parse("2006-01-02", s); err == nil {
+			parsed = t.Format("2006-01-02")
 			break
 		}
-
-		// Then month → normalize
-		t, err = time.Parse("2006-01", s)
-		if err != nil {
-			ctx.AddErrorf("invalid format (expected YYYY-MM-DD or YYYY-MM): %q", s)
-			return nil
+		if t, err := time.Parse("2006-01", s); err == nil {
+			parsed = t.Format("2006-01")
+			break
 		}
-		t = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
-		parsed = t
+		ctx.AddErrorf("invalid format (expected YYYY-MM-DD or YYYY-MM): %q", s)
+		return nil
 
-	case TypeMonthOrYearDate: // YYYY-MM or YYYY → normalize to YYYY-MM-01 or YYYY-01-01
+	case TypeMonthOrYearDate: // YYYY-MM or YYYY — validate and store normalized string
 		if node.Type != gjson.String {
 			ctx.AddError("must be a string")
 			return nil
 		}
 		s := node.String()
-		var t time.Time
-		var err error
-
-		// Try month first
-		t, err = time.Parse("2006-01", s)
-		if err == nil {
-			t = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
-			parsed = t
+		if t, err := time.Parse("2006-01", s); err == nil {
+			parsed = t.Format("2006-01")
 			break
 		}
-
-		// Then year
-		if len(s) != 4 {
-			ctx.AddErrorf("invalid format (expected YYYY-MM or YYYY): %q", s)
-			return nil
+		if len(s) == 4 {
+			if _, err := strconv.Atoi(s); err == nil {
+				parsed = s
+				break
+			}
 		}
-		y, err := strconv.Atoi(s)
-		if err != nil {
-			ctx.AddErrorf("invalid year: %q", s)
-			return nil
-		}
-		parsed = time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
+		ctx.AddErrorf("invalid format (expected YYYY-MM or YYYY): %q", s)
+		return nil
 
 	default:
 		ctx.AddErrorf("unsupported scalar type: %q", cf.ScalarType)
@@ -813,10 +790,12 @@ func validateObject(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) ma
 		}
 	}
 
-	if len(result) == 0 {
-		if cf.Default == nil && !cf.AllowEmpty {
-			ctx.AddError("cannot be empty object")
-		}
+	// Only report "cannot be empty object" when the client actually sent an empty object.
+	// If they sent keys (wrong or unknown), we already have more specific errors.
+	var inputKeyCount int
+	node.ForEach(func(_, _ gjson.Result) bool { inputKeyCount++; return true })
+	if inputKeyCount == 0 && cf.Default == nil && !cf.AllowEmpty {
+		ctx.AddError("cannot be empty object")
 	}
 
 	return result

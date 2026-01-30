@@ -3,7 +3,6 @@ package validation
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 // ── Test Helpers ────────────────────────────────────────────────────────────────
@@ -222,13 +221,12 @@ func TestScalarFullDate(t *testing.T) {
 		input := map[string]any{"date": "2024-01-15"}
 		result, errs := schema.Validate(input)
 		assertNoErrors(t, errs)
-		date, ok := result["date"].(time.Time)
+		date, ok := result["date"].(string)
 		if !ok {
-			t.Fatalf("expected time.Time, got %T", result["date"])
+			t.Fatalf("expected string, got %T", result["date"])
 		}
-		expected := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-		if !date.Equal(expected) {
-			t.Errorf("expected %v, got %v", expected, date)
+		if date != "2024-01-15" {
+			t.Errorf("expected 2024-01-15, got %q", date)
 		}
 	})
 
@@ -252,13 +250,12 @@ func TestScalarMonthDate(t *testing.T) {
 	input := map[string]any{"month": "2024-01"}
 	result, errs := schema.Validate(input)
 	assertNoErrors(t, errs)
-	date, ok := result["month"].(time.Time)
+	month, ok := result["month"].(string)
 	if !ok {
-		t.Fatalf("expected time.Time, got %T", result["month"])
+		t.Fatalf("expected string, got %T", result["month"])
 	}
-	expected := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	if !date.Equal(expected) {
-		t.Errorf("expected %v, got %v", expected, date)
+	if month != "2024-01" {
+		t.Errorf("expected 2024-01, got %q", month)
 	}
 }
 
@@ -274,13 +271,12 @@ func TestScalarYearDate(t *testing.T) {
 	input := map[string]any{"year": "2024"}
 	result, errs := schema.Validate(input)
 	assertNoErrors(t, errs)
-	date, ok := result["year"].(time.Time)
+	year, ok := result["year"].(string)
 	if !ok {
-		t.Fatalf("expected time.Time, got %T", result["year"])
+		t.Fatalf("expected string, got %T", result["year"])
 	}
-	expected := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	if !date.Equal(expected) {
-		t.Errorf("expected %v, got %v", expected, date)
+	if year != "2024" {
+		t.Errorf("expected 2024, got %q", year)
 	}
 }
 
@@ -558,6 +554,21 @@ func TestObjectBasic(t *testing.T) {
 		_, errs := schema.Validate(input)
 		assertHasErrors(t, errs, 1)
 		assertErrorContains(t, errs, "user", "cannot be empty object")
+	})
+
+	t.Run("object with only wrong keys does not get cannot be empty object", func(t *testing.T) {
+		// Client sent keys (wrong/unknown) — we should get specific errors only, not "cannot be empty object".
+		input := map[string]any{
+			"user": map[string]any{"wrong_key": "value"},
+		}
+		_, errs := schema.Validate(input)
+		for _, e := range errs {
+			if e.Msg == "cannot be empty object" {
+				t.Errorf("should not report 'cannot be empty object' when client sent keys; got errors: %v", errs)
+				break
+			}
+		}
+		assertHasErrors(t, errs, 1) // unknown field only
 	})
 }
 
@@ -1318,9 +1329,9 @@ func TestDateTypesEdgeCases(t *testing.T) {
 		input := map[string]any{"date": "2024-01-15"}
 		result, errs := schema.Validate(input)
 		assertNoErrors(t, errs)
-		_, ok := result["date"].(time.Time)
+		_, ok := result["date"].(string)
 		if !ok {
-			t.Errorf("expected time.Time, got %T", result["date"])
+			t.Errorf("expected string, got %T", result["date"])
 		}
 	})
 
@@ -1336,13 +1347,12 @@ func TestDateTypesEdgeCases(t *testing.T) {
 		input := map[string]any{"date": "2024-01"}
 		result, errs := schema.Validate(input)
 		assertNoErrors(t, errs)
-		date, ok := result["date"].(time.Time)
+		date, ok := result["date"].(string)
 		if !ok {
-			t.Fatalf("expected time.Time, got %T", result["date"])
+			t.Fatalf("expected string, got %T", result["date"])
 		}
-		expected := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-		if !date.Equal(expected) {
-			t.Errorf("expected %v, got %v", expected, date)
+		if date != "2024-01" {
+			t.Errorf("expected 2024-01, got %q", date)
 		}
 	})
 
@@ -1358,9 +1368,9 @@ func TestDateTypesEdgeCases(t *testing.T) {
 		input := map[string]any{"date": "2024-01"}
 		result, errs := schema.Validate(input)
 		assertNoErrors(t, errs)
-		_, ok := result["date"].(time.Time)
+		_, ok := result["date"].(string)
 		if !ok {
-			t.Errorf("expected time.Time, got %T", result["date"])
+			t.Errorf("expected string, got %T", result["date"])
 		}
 	})
 
@@ -1376,13 +1386,12 @@ func TestDateTypesEdgeCases(t *testing.T) {
 		input := map[string]any{"date": "2024"}
 		result, errs := schema.Validate(input)
 		assertNoErrors(t, errs)
-		date, ok := result["date"].(time.Time)
+		date, ok := result["date"].(string)
 		if !ok {
-			t.Fatalf("expected time.Time, got %T", result["date"])
+			t.Fatalf("expected string, got %T", result["date"])
 		}
-		expected := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-		if !date.Equal(expected) {
-			t.Errorf("expected %v, got %v", expected, date)
+		if date != "2024" {
+			t.Errorf("expected 2024, got %q", date)
 		}
 	})
 
