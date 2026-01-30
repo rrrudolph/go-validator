@@ -1,14 +1,15 @@
 // Package validation: sample client config (reference only).
+// Request structs (TotalsRequest, RecordsRequest, etc.) live in sample-request-structs.go.
 // Uncomment and adapt for your API.
 package validation
 
 // import (
 // 	"fmt"
 // 	"maps"
+// 	"net/http"
 
 // 	"github.com/gin-gonic/gin"
-// 	apimodel "gitlab.economicmodeling.com/ltc/microservices/warn/app/lib/model"
-// 	v "gitlab.economicmodeling.com/rudy.selman/go-validator"
+// 	v "github.com/rrrudolph/go-validator"
 // )
 
 // var (
@@ -19,38 +20,66 @@ package validation
 // 		NestedRanking     *v.CompiledSchema
 // 		Timeseries        *v.CompiledSchema
 // 		RankingTimeseries *v.CompiledSchema
-// 		Records           *v.CompiledSchema
 // 	}{}
 
 // 	filtersConfig = map[string]*v.FieldConfig{
-// 		"number_employees_affected": v.GteZeroRangeOrArray(v.TypeInteger, "gte", "lte"),
+// 		"submission_date": v.RangeOrArray(v.TypeDayOrMonthDate, "gte", "lte"),
 
-// 		"notice_date": v.RangeOrArray(v.TypeDayOrMonthDate, "gte", "lte"),
-// 		"layoff_date": v.RangeOrArray(v.TypeDayOrMonthDate, "gte", "lte"),
-// 		// "year":        v.RangeOrArray(v.TypeYearDate, "gte", "lte"),
+// 		"company":      v.ScalarArray(v.TypeInteger),
+// 		"company_name": v.ScalarArray(v.TypeString),
+// 		"title_name":   v.ScalarArray(v.TypeString),
+// 		"onet":         v.ScalarArray(v.TypeString),
+// 		"onet_name":    v.ScalarArray(v.TypeString),
+// 		"naics2":       v.ScalarArray(v.TypeInteger),
+// 		"naics3":       v.ScalarArray(v.TypeInteger),
+// 		"naics4":       v.ScalarArray(v.TypeInteger),
+// 		"naics5":       v.ScalarArray(v.TypeInteger),
+// 		"naics6":       v.ScalarArray(v.TypeInteger),
+// 		"naics2_name":  v.ScalarArray(v.TypeString),
+// 		"naics3_name":  v.ScalarArray(v.TypeString),
+// 		"naics4_name":  v.ScalarArray(v.TypeString),
+// 		"naics5_name":  v.ScalarArray(v.TypeString),
+// 		"naics6_name":  v.ScalarArray(v.TypeString),
+// 		"soc2":         v.ScalarArray(v.TypeString),
+// 		"soc3":         v.ScalarArray(v.TypeString),
+// 		"soc4":         v.ScalarArray(v.TypeString),
+// 		"soc5":         v.ScalarArray(v.TypeString),
+// 		"soc2_name":    v.ScalarArray(v.TypeString),
+// 		"soc3_name":    v.ScalarArray(v.TypeString),
+// 		"soc4_name":    v.ScalarArray(v.TypeString),
+// 		"soc5_name":    v.ScalarArray(v.TypeString),
 
-// 		"city":                 v.ScalarArray(v.TypeString),
-// 		"city_name":            v.ScalarArray(v.TypeString),
-// 		"state":                v.ScalarArray(v.TypeString),
-// 		"zip":                  v.ScalarArray(v.TypeString),
-// 		"county":               v.ScalarArray(v.TypeString),
-// 		"company":              v.ScalarArray(v.TypeString),
-// 		"company_name":         v.ScalarArray(v.TypeString),
-// 		"layoff_type":          v.ScalarArray(v.TypeString),
-// 		"notice_type":          v.ScalarArray(v.TypeString),
-// 		"occupations_impacted": v.ScalarArray(v.TypeString),
-// 		// "reason_for_layoff":    v.ScalarArray(v.TypeString), no values
-// 		"trade_union": v.ScalarArray(v.TypeString),
-// 		"naics2":      v.ScalarArray(v.TypeString),
-// 		"naics3":      v.ScalarArray(v.TypeString),
-// 		"naics4":      v.ScalarArray(v.TypeString),
-// 		"naics5":      v.ScalarArray(v.TypeString),
-// 		"naics6":      v.ScalarArray(v.TypeString),
-// 		"naics2_name": v.ScalarArray(v.TypeString),
-// 		"naics3_name": v.ScalarArray(v.TypeString),
-// 		"naics4_name": v.ScalarArray(v.TypeString),
-// 		"naics5_name": v.ScalarArray(v.TypeString),
-// 		"naics6_name": v.ScalarArray(v.TypeString),
+// 		"lot_career_area":                 v.ScalarArray(v.TypeInteger),
+// 		"lot_career_area_name":            v.ScalarArray(v.TypeString),
+// 		"lot_occupation":                  v.ScalarArray(v.TypeInteger),
+// 		"lot_occupation_name":             v.ScalarArray(v.TypeString),
+// 		"lot_occupation_group":            v.ScalarArray(v.TypeInteger),
+// 		"lot_occupation_group_name":       v.ScalarArray(v.TypeString),
+// 		"lot_specialized_occupation":      v.ScalarArray(v.TypeInteger),
+// 		"lot_specialized_occupation_name": v.ScalarArray(v.TypeString),
+
+// 		"laa_admin_area_1":      v.ScalarArray(v.TypeString),
+// 		"laa_admin_area_1_name": v.ScalarArray(v.TypeString),
+// 		"laa_admin_area_2":      v.ScalarArray(v.TypeString),
+// 		"laa_admin_area_2_name": v.ScalarArray(v.TypeString),
+// 		"laa_country":           v.ScalarArray(v.TypeString),
+// 		"laa_country_name":      v.ScalarArray(v.TypeString),
+
+// 		"address":     v.ScalarArray(v.TypeString),
+// 		"city":        v.ScalarArray(v.TypeString),
+// 		"city_name":   v.ScalarArray(v.TypeString),
+// 		"state":       v.ScalarArray(v.TypeInteger),
+// 		"state_name":  v.ScalarArray(v.TypeString),
+// 		"zip":         v.ScalarArray(v.TypeString),
+// 		"county":      v.ScalarArray(v.TypeString),
+// 		"county_name": v.ScalarArray(v.TypeString),
+// 		"msa":         v.ScalarArray(v.TypeString),
+// 		"msa_name":    v.ScalarArray(v.TypeString),
+
+// 		"wage_level":      v.ScalarArray(v.TypeString),
+// 		"case_status":     v.ScalarArray(v.TypeString),
+// 		"employment_type": v.ScalarArray(v.TypeString),
+// 		"is_certified":    v.ScalarField(v.TypeBoolean, false),
 // 	}
 
 // 	// ── Reusable FieldConfig objects
@@ -69,7 +98,7 @@ package validation
 // 			ScalarType:    v.TypeString,
 // 			StrEnumValues: GetAllMetrics(),
 // 		},
-// 		Default: []string{"total_events"},
+// 		Default: []any{"total_applications"}, // easier to handle this if we can expect consistent type
 // 	}
 
 // 	RankingConfig = v.FieldConfig{
@@ -81,8 +110,8 @@ package validation
 // 			"by": {
 // 				OneOf:         []v.OneOf{v.Scalar},
 // 				ScalarType:    v.TypeString,
-// 				StrEnumValues: GetAllMetrics(),
-// 				Default:       "total_events",
+// 				StrEnumValues: GetAllRankByMetrics(),
+// 				Default:       "total_applications",
 // 			},
 // 			"extra_metrics": &MetricsConfig,
 // 		},
@@ -105,41 +134,28 @@ package validation
 // 		"rank":        &RankingConfig,
 // 		"nested_rank": &RankingConfig,
 // 	}
-
-// 	// DefaultRecordsFields is used when "fields" is missing or empty on records requests.
-// 	DefaultRecordsFields = []string{"id", "layoff_date", "state", "company", "description", "number_employees_affected"}
-
-// 	RecordsRequestConfig = map[string]*v.FieldConfig{
-// 		"filter": &FilterConfig,
-// 		"fields": {
-// 			OneOf:      []v.OneOf{v.Array},
-// 			Items: &v.FieldConfig{
-// 				OneOf:         []v.OneOf{v.Scalar},
-// 				ScalarType:    v.TypeString,
-// 				StrEnumValues: GetAllRecordFields(),
-// 			},
-// 			Default: DefaultRecordsFields,
-// 		},
-// 		"order": {
-// 			OneOf:         []v.OneOf{v.Scalar},
-// 			ScalarType:    v.TypeString,
-// 			StrEnumValues: []string{"score", "layoff_date"},
-// 			Default:       "score",
-// 		},
-// 		"limit": v.DefaultMinMaxInteger(10, 1, 100),
-// 	}
 // )
 
-// // Custom requests schemas required by specific endpoints, and compilation
+// // Custom requests schemas required by specific endpoints
 // func init() {
-// 	// RecordsRequestConfig["fields"].Items.StrEnumValues is set at compile time when GetAllRecordFields()
-// 	// was still nil (meta.init() runs after var init). Patch it now so enum validation works.
-// 	if fc := RecordsRequestConfig["fields"]; fc != nil && fc.Items != nil {
-// 		fc.Items.StrEnumValues = GetAllRecordFields()
+// 	// clone base properties for timeseries, leave main FilterConfig intact
+// 	timeseriesFilter := maps.Clone(FilterConfig.Properties)
+
+// 	// submission_date is required and must be a valid date range
+// 	submissionDateConfig := &v.FieldConfig{
+// 		OneOf:      []v.OneOf{v.Object},
+// 		AllowEmpty: false,
+// 		Required:   true,
+// 		Properties: map[string]*v.FieldConfig{
+// 			"gte": v.ScalarField(v.TypeDayOrMonthDate, true),
+// 			"lte": v.ScalarField(v.TypeDayOrMonthDate, true),
+// 		},
+// 		AdditionalValidators: []v.ValidatorFunc{
+// 			v.ValidateRangeOrder(v.RangeKeys{Lower: "gte", Upper: "lte"}),
+// 		},
 // 	}
 
-// 	// clone base properties for timeseries; require "at least one of" layoff_date or notice_date
-// 	timeseriesFilter := maps.Clone(FilterConfig.Properties)
+// 	timeseriesFilter["submission_date"] = submissionDateConfig
 
 // 	TimeseriesRequestConfig := map[string]*v.FieldConfig{
 // 		"filter": {
@@ -147,9 +163,6 @@ package validation
 // 			Required:   true,
 // 			AllowEmpty: false,
 // 			Properties: timeseriesFilter,
-// 			AdditionalValidators: []v.ValidatorFunc{
-// 				v.RequireAtLeastOneRange([]string{"layoff_date", "notice_date"}, v.RangeKeys{Lower: "gte", Upper: "lte"}),
-// 			},
 // 		},
 // 		"metrics": &MetricsConfig,
 // 		"interval": {
@@ -180,7 +193,6 @@ package validation
 // 	CompiledSchemas.NestedRanking = mustCompile("nested-ranking", NestedRankingRequestConfig)
 // 	CompiledSchemas.Timeseries = mustCompile("timeseries", TimeseriesRequestConfig)
 // 	CompiledSchemas.RankingTimeseries = mustCompile("ranking-timeseries", RankingTimeseriesRequestConfig)
-// 	CompiledSchemas.Records = mustCompile("records", RecordsRequestConfig)
 // }
 
 // // panics on invalid config
@@ -192,24 +204,32 @@ package validation
 // 	return schema
 // }
 
-// // this would live in an API client for error response handling
-// func ValidateRequest(schema *v.CompiledSchema) gin.HandlerFunc {
-// 	return func(gctx *gin.Context) {
+// // ValidateRequest validates the body, decodes into T, and sets the result on the context.
+// // Register with the request type: ValidateRequest[TotalsRequest](TotalsSchema)
+// func ValidateRequest[T any](schema *v.CompiledSchema) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
 // 		var raw map[string]any
-// 		if err := gctx.ShouldBindJSON(&raw); err != nil {
-// 			gctx.Error(apimodel.NewInvalidRequestError(err))
-// 			gctx.Abort()
+// 		if err := c.ShouldBindJSON(&raw); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 			c.Abort()
 // 			return
 // 		}
 
 // 		validated, errs := schema.Validate(raw)
 // 		if len(errs) > 0 {
-// 			gctx.Error(errs)
-// 			gctx.Abort()
+// 			c.JSON(http.StatusBadRequest, errs.ToStandardErrors())
+// 			c.Abort()
 // 			return
 // 		}
 
-// 		gctx.Set("validatedBody", validated)
-// 		gctx.Next()
+// 		var req T
+// 		if err := v.DecodeValidated(validated, &req); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// 			c.Abort()
+// 			return
+// 		}
+
+// 		c.Set("validatedBody", &req)
+// 		c.Next()
 // 	}
 // }

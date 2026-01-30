@@ -49,17 +49,17 @@ type RangeKeys struct {
 	Lower string // "gte", "lower_bound", "start", etc.
 	Upper string // "lte", "upper_bound", "end", etc.
 }
-type FieldConfig struct {
-	OneOf                []OneOf                 // [Array, Object, Scalar]
-	ScalarType           ScalarType              // bool, string, custom date types, etc.
-	Items                *FieldConfig            // for arrays: config for each item
-	Properties           map[string]*FieldConfig // for objects: config for each property
-	AdditionalValidators []ValidatorFunc         // custom validation functions like gte/lte checks, min/max, etc.
-	StrEnumValues        []string                // only allow these string values
-	IntEnumValues        []int                   // only allow these integer values
-	Required             bool                    // default false
-	AllowEmpty           bool                    // for top level request filtering like {"filter": {}}, default false
-	Default              any                     // optional default value if field is missing
+type Field struct {
+	OneOf                []OneOf           // [Array, Object, Scalar]
+	ScalarType           ScalarType        // bool, string, custom date types, etc.
+	Items                *Field            // for arrays: config for each item
+	Properties           map[string]*Field // for objects: config for each property
+	AdditionalValidators []ValidatorFunc   // custom validation functions like gte/lte checks, min/max, etc.
+	StrEnumValues        []string          // only allow these string values
+	IntEnumValues        []int             // only allow these integer values
+	Required             bool              // default false
+	AllowEmpty           bool              // default false
+	Default              any               // optional default value if field is missing
 }
 
 // ── Additional Validators ──────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ func ValidateRequired(required []string) ValidatorFunc {
 }
 
 // RequireAtLeastOneOf adds an error if the object does not have at least one of
-// the given keys with a non-nil, non-empty value. Use for "at least one of X or Y" validation.
+// the given keys with a non-nil, non-empty value. Use for "at least one of X or Y" v.
 func RequireAtLeastOneOf(fieldNames ...string) ValidatorFunc {
 	return func(ctx *ValidationCtx, value any, _ *CompiledField) error {
 		if ctx.HasErrors() {
@@ -296,6 +296,33 @@ func (e ValidationErrors) ToAPIResponse() APIErrorResponse {
 		out[i] = APIErrorEntry{Path: err.Path, Message: err.Msg}
 	}
 	return APIErrorResponse{Errors: out}
+}
+
+// StandardErrorEntry is a single error in a typical API error response (status/title/detail).
+type StandardErrorEntry struct {
+	Status int    `json:"status"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+}
+
+// StandardErrorResponse is the wrapper for status/title/detail style errors.
+type StandardErrorResponse struct {
+	Errors []StandardErrorEntry `json:"errors"`
+}
+
+// ToStandardErrors returns errors in a typical API format: each validation error becomes
+// an entry with the given status and title; detail is "path: message" (or just message if path is empty).
+func (e ValidationErrors) ToStandardErrors() StandardErrorResponse {
+	sorted := e.Sorted()
+	out := make([]StandardErrorEntry, len(sorted))
+	for i, err := range sorted {
+		detail := err.Msg
+		if err.Path != "" {
+			detail = err.Path + ": " + err.Msg
+		}
+		out[i] = StandardErrorEntry{Status: 400, Title: "Invalid Request", Detail: detail}
+	}
+	return StandardErrorResponse{Errors: out}
 }
 
 type ValidationCtx struct {
@@ -428,7 +455,12 @@ func validateNode(
 			ctx.AddErrorf("array not allowed, must be one of: %s", allowed)
 			return nil
 		}
-		return validateArray(ctx, node, cf)
+		parsed := validateArray(ctx, node, cf)
+		// Apply default when client sends empty array and a default is configured
+		if parsed != nil && len(parsed) == 0 && cf.Default != nil {
+			return cf.Default
+		}
+		return parsed
 
 	case node.IsObject():
 		if cf.Kind&KindObject == 0 {
@@ -436,7 +468,12 @@ func validateNode(
 			ctx.AddErrorf("object not allowed, must be one of: %s", allowed)
 			return nil
 		}
-		return validateObject(ctx, node, cf)
+		parsed := validateObject(ctx, node, cf)
+		// Apply default when client sends empty object and a default is configured
+		if parsed != nil && len(parsed) == 0 && cf.Default != nil {
+			return cf.Default
+		}
+		return parsed
 	default:
 		ctx.AddErrorf("unsupported value type: %v", node.Type)
 		return nil
@@ -644,6 +681,11 @@ func validateScalar(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) an
 		}
 	}
 
+	// Apply default when client sends empty string and a default is configured
+	if s, ok := parsed.(string); ok && s == "" && cf.Default != nil {
+		return cf.Default
+	}
+
 	return parsed
 }
 
@@ -707,8 +749,10 @@ func validateArray(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) []a
 		return !ctx.StopOnFirst || !ctx.HasErrors()
 	})
 
-	if !cf.AllowEmpty && len(node.Array()) == 0 {
-		ctx.AddError("cannot be empty array")
+	if len(node.Array()) == 0 {
+		if cf.Default == nil && !cf.AllowEmpty {
+			ctx.AddError("cannot be empty array")
+		}
 	}
 
 	return result
@@ -769,8 +813,10 @@ func validateObject(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) ma
 		}
 	}
 
-	if !cf.AllowEmpty && len(result) == 0 {
-		ctx.AddError("cannot be empty object")
+	if len(result) == 0 {
+		if cf.Default == nil && !cf.AllowEmpty {
+			ctx.AddError("cannot be empty object")
+		}
 	}
 
 	return result
@@ -871,7 +917,7 @@ type CompiledSchema struct {
 }
 
 // Public constructor
-func CompileConfig(config map[string]*FieldConfig) (*CompiledSchema, error) {
+func CompileConfig(config map[string]*Field) (*CompiledSchema, error) {
 	fields, err := validateAndCompileConfig(config)
 	if err != nil {
 		return nil, err
@@ -882,8 +928,19 @@ func CompileConfig(config map[string]*FieldConfig) (*CompiledSchema, error) {
 	}, nil
 }
 
-// ValidateAndCompile compiles a single FieldConfig map into a precompiled schema
-func validateAndCompileConfig(config map[string]*FieldConfig) (map[string]*CompiledField, error) {
+// MustCompile compiles config into a CompiledSchema, or panics on error.
+// Use at init/startup when invalid config is a programming error; the name is
+// included in the panic message for easier debugging.
+func MustCompile(name string, config map[string]*Field) *CompiledSchema {
+	schema, err := CompileConfig(config)
+	if err != nil {
+		panic(fmt.Sprintf("invalid config for %q: %v", name, err))
+	}
+	return schema
+}
+
+// ValidateAndCompile compiles a single Field map into a precompiled schema
+func validateAndCompileConfig(config map[string]*Field) (map[string]*CompiledField, error) {
 	compiled := make(map[string]*CompiledField, len(config))
 
 	for field, cfg := range config {
@@ -903,7 +960,7 @@ func validateAndCompileConfig(config map[string]*FieldConfig) (map[string]*Compi
 	return compiled, nil
 }
 
-func compileField(parentPath string, cfg FieldConfig) (*CompiledField, error) {
+func compileField(parentPath string, cfg Field) (*CompiledField, error) {
 	currentPath := parentPath
 	if parentPath != "" && parentPath != "." {
 		currentPath = parentPath
@@ -1016,8 +1073,8 @@ func compileField(parentPath string, cfg FieldConfig) (*CompiledField, error) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ScalarField returns a basic scalar field config
-func ScalarField(scalarType ScalarType, required bool) *FieldConfig {
-	return &FieldConfig{
+func ScalarField(scalarType ScalarType, required bool) *Field {
+	return &Field{
 		OneOf:      []OneOf{Scalar},
 		ScalarType: scalarType,
 		Required:   required,
@@ -1025,8 +1082,8 @@ func ScalarField(scalarType ScalarType, required bool) *FieldConfig {
 }
 
 // ScalarArray returns a simple array of scalars (most common pattern in your config)
-func ScalarArray(scalarType ScalarType) *FieldConfig {
-	return &FieldConfig{
+func ScalarArray(scalarType ScalarType) *Field {
+	return &Field{
 		OneOf: []OneOf{Array},
 		Items: ScalarField(scalarType, false),
 	}
@@ -1037,11 +1094,11 @@ func ScalarArray(scalarType ScalarType) *FieldConfig {
 //   - or an object with range key(s) ({gte: ..., lte: ...})
 //
 // Range gets validated for proper ordering (lower <= upper).
-func RangeOrArray(scalarType ScalarType, lowerField string, upperField string) *FieldConfig {
-	return &FieldConfig{
+func RangeOrArray(scalarType ScalarType, lowerField string, upperField string) *Field {
+	return &Field{
 		OneOf: []OneOf{Array, Object},
 		Items: ScalarField(scalarType, false),
-		Properties: map[string]*FieldConfig{
+		Properties: map[string]*Field{
 			lowerField: ScalarField(scalarType, false),
 			upperField: ScalarField(scalarType, false),
 		},
@@ -1053,7 +1110,7 @@ func RangeOrArray(scalarType ScalarType, lowerField string, upperField string) *
 
 // GteZeroRangeOrArray creates a range object with a minimum bound (>= 0)
 // on the lower key, and range-order validation between lower and upper if type is object
-func GteZeroRangeOrArray(scalarType ScalarType, lowerField string, upperField string) *FieldConfig {
+func GteZeroRangeOrArray(scalarType ScalarType, lowerField string, upperField string) *Field {
 	cfg := RangeOrArray(scalarType, lowerField, upperField)
 
 	// Attach min >= 0 validator **only to the lower bound field** (gte)
@@ -1074,8 +1131,8 @@ func GteZeroRangeOrArray(scalarType ScalarType, lowerField string, upperField st
 // DefaultMinMaxInteger creates a configuration for a typical limit/offset/per-page style field:
 // - Must be a positive integer
 // - Provides a default value if omitted
-func DefaultMinMaxInteger(defaultValue int64, min int64, max int64) *FieldConfig {
-	return &FieldConfig{
+func DefaultMinMaxInteger(defaultValue int64, min int64, max int64) *Field {
+	return &Field{
 		OneOf:      []OneOf{Scalar},
 		ScalarType: TypeInteger,
 		Default:    defaultValue,

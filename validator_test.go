@@ -51,7 +51,7 @@ func containsMiddle(s, substr string) bool {
 // ── Scalar Type Tests ──────────────────────────────────────────────────────────
 
 func TestScalarString(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, false),
 	}
 	schema, err := CompileConfig(config)
@@ -93,7 +93,7 @@ func TestScalarString(t *testing.T) {
 }
 
 func TestScalarStringAllowEmpty(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": {
 			OneOf:      []OneOf{Scalar},
 			ScalarType: TypeString,
@@ -114,7 +114,7 @@ func TestScalarStringAllowEmpty(t *testing.T) {
 }
 
 func TestScalarInteger(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"count": ScalarField(TypeInteger, false),
 	}
 	schema, err := CompileConfig(config)
@@ -156,7 +156,7 @@ func TestScalarInteger(t *testing.T) {
 }
 
 func TestScalarBoolean(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"active": ScalarField(TypeBoolean, false),
 	}
 	schema, err := CompileConfig(config)
@@ -191,7 +191,7 @@ func TestScalarBoolean(t *testing.T) {
 }
 
 func TestScalarFloat(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"price": ScalarField(TypeFloat, false),
 	}
 	schema, err := CompileConfig(config)
@@ -210,7 +210,7 @@ func TestScalarFloat(t *testing.T) {
 // ── Date Type Tests ───────────────────────────────────────────────────────────
 
 func TestScalarFullDate(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"date": ScalarField(TypeFullDate, false),
 	}
 	schema, err := CompileConfig(config)
@@ -241,7 +241,7 @@ func TestScalarFullDate(t *testing.T) {
 }
 
 func TestScalarMonthDate(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"month": ScalarField(TypeMonthDate, false),
 	}
 	schema, err := CompileConfig(config)
@@ -263,7 +263,7 @@ func TestScalarMonthDate(t *testing.T) {
 }
 
 func TestScalarYearDate(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"year": ScalarField(TypeYearDate, false),
 	}
 	schema, err := CompileConfig(config)
@@ -287,7 +287,7 @@ func TestScalarYearDate(t *testing.T) {
 // ── Enum Tests ──────────────────────────────────────────────────────────────────
 
 func TestScalarEnumString(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"status": {
 			OneOf:         []OneOf{Scalar},
 			ScalarType:    TypeString,
@@ -318,7 +318,7 @@ func TestScalarEnumString(t *testing.T) {
 }
 
 func TestScalarEnumInteger(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"priority": {
 			OneOf:         []OneOf{Scalar},
 			ScalarType:    TypeInteger,
@@ -349,10 +349,10 @@ func TestScalarEnumInteger(t *testing.T) {
 
 func TestArrayEnumOnItems(t *testing.T) {
 	// Enum values are set at cfg.Items level; each array item is validated against Items enum.
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"fields": {
 			OneOf: []OneOf{Array},
-			Items: &FieldConfig{
+			Items: &Field{
 				OneOf:         []OneOf{Scalar},
 				ScalarType:    TypeString,
 				StrEnumValues: []string{"field1", "field2", "field3"},
@@ -386,10 +386,10 @@ func TestArrayEnumOnItems(t *testing.T) {
 
 	t.Run("array items validated against Items enum only", func(t *testing.T) {
 		// Items has StrEnumValues; only those values are allowed for each element.
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"fields": {
 				OneOf: []OneOf{Array},
-				Items: &FieldConfig{
+				Items: &Field{
 					OneOf:         []OneOf{Scalar},
 					ScalarType:    TypeString,
 					StrEnumValues: []string{"field1", "field2"},
@@ -418,7 +418,7 @@ func TestArrayEnumOnItems(t *testing.T) {
 // ── Array Tests ─────────────────────────────────────────────────────────────────
 
 func TestArrayBasic(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"tags": ScalarArray(TypeString),
 	}
 	schema, err := CompileConfig(config)
@@ -455,7 +455,7 @@ func TestArrayBasic(t *testing.T) {
 }
 
 func TestArrayAllowEmpty(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"tags": {
 			OneOf:      []OneOf{Array},
 			Items:      ScalarField(TypeString, false),
@@ -480,10 +480,10 @@ func TestArrayAllowEmpty(t *testing.T) {
 }
 
 func TestArrayNested(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"matrix": {
 			OneOf: []OneOf{Array},
-			Items: &FieldConfig{
+			Items: &Field{
 				OneOf: []OneOf{Array},
 				Items: ScalarField(TypeInteger, false),
 			},
@@ -509,10 +509,10 @@ func TestArrayNested(t *testing.T) {
 // ── Object Tests ───────────────────────────────────────────────────────────────
 
 func TestObjectBasic(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"user": {
 			OneOf: []OneOf{Object},
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"name": ScalarField(TypeString, false),
 				"age":  ScalarField(TypeInteger, false),
 			},
@@ -562,11 +562,11 @@ func TestObjectBasic(t *testing.T) {
 }
 
 func TestObjectAllowEmpty(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"filter": {
 			OneOf:      []OneOf{Object},
 			AllowEmpty: true,
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"name": ScalarField(TypeString, false),
 			},
 		},
@@ -591,7 +591,7 @@ func TestObjectAllowEmpty(t *testing.T) {
 // ── Required Field Tests ────────────────────────────────────────────────────────
 
 func TestRequiredField(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, true),
 		"age":  ScalarField(TypeInteger, false),
 	}
@@ -617,7 +617,7 @@ func TestRequiredField(t *testing.T) {
 // ── Default Value Tests ────────────────────────────────────────────────────────
 
 func TestDefaultValue(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"limit": DefaultMinMaxInteger(10, 1, 100),
 	}
 	schema, err := CompileConfig(config)
@@ -644,10 +644,39 @@ func TestDefaultValue(t *testing.T) {
 	})
 }
 
+func TestEmptyArrayWithDefaultYieldsDefault(t *testing.T) {
+	defaultFields := []any{"id", "name"}
+	config := map[string]*Field{
+		"fields": {
+			OneOf:      []OneOf{Array},
+			Items:      &Field{OneOf: []OneOf{Scalar}, ScalarType: TypeString},
+			AllowEmpty: true,
+			Default:    defaultFields,
+		},
+	}
+	schema, err := CompileConfig(config)
+	if err != nil {
+		t.Fatalf("failed to compile: %v", err)
+	}
+
+	t.Run("empty array with default yields default in validated output", func(t *testing.T) {
+		input := map[string]any{"fields": []any{}}
+		result, errs := schema.Validate(input)
+		assertNoErrors(t, errs)
+		got, ok := result["fields"].([]any)
+		if !ok {
+			t.Fatalf("expected []any, got %T", result["fields"])
+		}
+		if len(got) != 2 || got[0] != "id" || got[1] != "name" {
+			t.Errorf("expected default [id name], got %v", got)
+		}
+	})
+}
+
 // ── Range Validation Tests ────────────────────────────────────────────────────
 
 func TestRangeOrderValidation(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"range": RangeOrArray(TypeInteger, "gte", "lte"),
 	}
 	schema, err := CompileConfig(config)
@@ -686,7 +715,7 @@ func TestRangeOrderValidation(t *testing.T) {
 }
 
 func TestGteZeroRangeOrArray(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"count": GteZeroRangeOrArray(TypeInteger, "gte", "lte"),
 	}
 	schema, err := CompileConfig(config)
@@ -720,11 +749,11 @@ func TestGteZeroRangeOrArray(t *testing.T) {
 
 func TestRequireAtLeastOneRange(t *testing.T) {
 	// Simulates timeseries filter: at least one of layoff_date or notice_date must be a range object (gte/lte)
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"filter": {
 			OneOf:      []OneOf{Object},
 			AllowEmpty: true, // so "at least one range" is the only requirement when empty
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"layoff_date": RangeOrArray(TypeDayOrMonthDate, "gte", "lte"),
 				"notice_date": RangeOrArray(TypeDayOrMonthDate, "gte", "lte"),
 			},
@@ -811,7 +840,7 @@ func TestRequireAtLeastOneRange(t *testing.T) {
 // ── Min/Max Validation Tests ───────────────────────────────────────────────────
 
 func TestMinMaxValidation(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"limit": DefaultMinMaxInteger(10, 1, 100),
 	}
 	schema, err := CompileConfig(config)
@@ -843,13 +872,13 @@ func TestMinMaxValidation(t *testing.T) {
 // ── Nested Structure Tests ──────────────────────────────────────────────────────
 
 func TestNestedObject(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"user": {
 			OneOf: []OneOf{Object},
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"profile": {
 					OneOf: []OneOf{Object},
-					Properties: map[string]*FieldConfig{
+					Properties: map[string]*Field{
 						"name": ScalarField(TypeString, false),
 						"bio":  ScalarField(TypeString, false),
 					},
@@ -880,12 +909,12 @@ func TestNestedObject(t *testing.T) {
 }
 
 func TestArrayOfObjects(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"users": {
 			OneOf: []OneOf{Array},
-			Items: &FieldConfig{
+			Items: &Field{
 				OneOf: []OneOf{Object},
-				Properties: map[string]*FieldConfig{
+				Properties: map[string]*Field{
 					"name": ScalarField(TypeString, false),
 					"age":  ScalarField(TypeInteger, false),
 				},
@@ -917,12 +946,12 @@ func TestArrayOfObjects(t *testing.T) {
 // ── Error Path Tests ───────────────────────────────────────────────────────────
 
 func TestErrorPaths(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"users": {
 			OneOf: []OneOf{Array},
-			Items: &FieldConfig{
+			Items: &Field{
 				OneOf: []OneOf{Object},
-				Properties: map[string]*FieldConfig{
+				Properties: map[string]*Field{
 					"name": ScalarField(TypeString, true),
 					"tags": {
 						OneOf: []OneOf{Array},
@@ -990,7 +1019,7 @@ func TestErrorPaths(t *testing.T) {
 // ── Root Level Tests ───────────────────────────────────────────────────────────
 
 func TestRootMustBeObject(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, false),
 	}
 	schema, err := CompileConfig(config)
@@ -1005,7 +1034,7 @@ func TestRootMustBeObject(t *testing.T) {
 }
 
 func TestUnknownRootField(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, false),
 	}
 	schema, err := CompileConfig(config)
@@ -1033,7 +1062,7 @@ func TestUnknownRootField(t *testing.T) {
 }
 
 func TestCollectAllRootAndValidationErrors(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, true),
 		"age":  ScalarField(TypeInteger, false),
 	}
@@ -1179,7 +1208,7 @@ func TestToAPIResponseJSON(t *testing.T) {
 // TestValidationErrorsGolden runs a fixed invalid request and asserts expected error paths and message substrings.
 // Change this test when you intentionally change error messages or paths.
 func TestValidationErrorsGolden(t *testing.T) {
-	schema, err := CompileConfig(map[string]*FieldConfig{
+	schema, err := CompileConfig(map[string]*Field{
 		"name":   ScalarField(TypeString, true),
 		"limit":  DefaultMinMaxInteger(10, 1, 100),
 		"tags":   ScalarArray(TypeString),
@@ -1225,12 +1254,12 @@ func TestMaxDepthEnforced(t *testing.T) {
 	// Build a schema with 21 levels of array nesting so the leaf is at depth 21 (> MaxDepth 20)
 	itemCfg := ScalarField(TypeString, false)
 	for i := 0; i < 21; i++ {
-		itemCfg = &FieldConfig{
+		itemCfg = &Field{
 			OneOf: []OneOf{Array},
 			Items: itemCfg,
 		}
 	}
-	schema, err := CompileConfig(map[string]*FieldConfig{"deep": itemCfg})
+	schema, err := CompileConfig(map[string]*Field{"deep": itemCfg})
 	if err != nil {
 		t.Fatalf("compile: %v", err)
 	}
@@ -1261,7 +1290,7 @@ func TestMaxDepthEnforced(t *testing.T) {
 // ── Edge Cases ─────────────────────────────────────────────────────────────────
 
 func TestNilValues(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name": ScalarField(TypeString, false),
 	}
 	schema, err := CompileConfig(config)
@@ -1278,7 +1307,7 @@ func TestNilValues(t *testing.T) {
 
 func TestDateTypesEdgeCases(t *testing.T) {
 	t.Run("dayOrMonthDate - full date", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"date": ScalarField(TypeDayOrMonthDate, false),
 		}
 		schema, err := CompileConfig(config)
@@ -1296,7 +1325,7 @@ func TestDateTypesEdgeCases(t *testing.T) {
 	})
 
 	t.Run("dayOrMonthDate - month only", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"date": ScalarField(TypeDayOrMonthDate, false),
 		}
 		schema, err := CompileConfig(config)
@@ -1318,7 +1347,7 @@ func TestDateTypesEdgeCases(t *testing.T) {
 	})
 
 	t.Run("monthOrYearDate - month", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"date": ScalarField(TypeMonthOrYearDate, false),
 		}
 		schema, err := CompileConfig(config)
@@ -1336,7 +1365,7 @@ func TestDateTypesEdgeCases(t *testing.T) {
 	})
 
 	t.Run("monthOrYearDate - year", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"date": ScalarField(TypeMonthOrYearDate, false),
 		}
 		schema, err := CompileConfig(config)
@@ -1358,7 +1387,7 @@ func TestDateTypesEdgeCases(t *testing.T) {
 	})
 
 	t.Run("yearDate invalid length", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"year": ScalarField(TypeYearDate, false),
 		}
 		schema, err := CompileConfig(config)
@@ -1374,7 +1403,7 @@ func TestDateTypesEdgeCases(t *testing.T) {
 }
 
 func TestIntegerFromStringEdgeCases(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"num": ScalarField(TypeInteger, false),
 	}
 	schema, err := CompileConfig(config)
@@ -1402,7 +1431,7 @@ func TestIntegerFromStringEdgeCases(t *testing.T) {
 }
 
 func TestArrayWithInvalidItemTypes(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"numbers": ScalarArray(TypeInteger),
 	}
 	schema, err := CompileConfig(config)
@@ -1419,13 +1448,13 @@ func TestArrayWithInvalidItemTypes(t *testing.T) {
 }
 
 func TestObjectNestedUnknownField(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"outer": {
 			OneOf: []OneOf{Object},
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"inner": {
 					OneOf: []OneOf{Object},
-					Properties: map[string]*FieldConfig{
+					Properties: map[string]*Field{
 						"value": ScalarField(TypeString, false),
 					},
 				},
@@ -1451,7 +1480,7 @@ func TestObjectNestedUnknownField(t *testing.T) {
 }
 
 func TestRangeValidationEdgeCases(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"range": RangeOrArray(TypeInteger, "gte", "lte"),
 	}
 	schema, err := CompileConfig(config)
@@ -1493,11 +1522,11 @@ func TestRangeValidationEdgeCases(t *testing.T) {
 }
 
 func TestRequiredInNestedObject(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"user": {
 			OneOf:      []OneOf{Object},
 			AllowEmpty: true, // Allow empty to avoid empty object error
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"name": ScalarField(TypeString, true),
 			},
 		},
@@ -1516,7 +1545,7 @@ func TestRequiredInNestedObject(t *testing.T) {
 }
 
 func TestMultipleErrors(t *testing.T) {
-	config := map[string]*FieldConfig{
+	config := map[string]*Field{
 		"name":  ScalarField(TypeString, true),
 		"age":   ScalarField(TypeInteger, true),
 		"email": ScalarField(TypeString, true),
@@ -1585,7 +1614,7 @@ func TestRangeOrArrayHelper(t *testing.T) {
 
 func TestCompilationErrors(t *testing.T) {
 	t.Run("nil field config", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"field": nil,
 		}
 		_, err := CompileConfig(config)
@@ -1595,7 +1624,7 @@ func TestCompilationErrors(t *testing.T) {
 	})
 
 	t.Run("scalar without ScalarType", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"field": {
 				OneOf: []OneOf{Scalar},
 			},
@@ -1607,7 +1636,7 @@ func TestCompilationErrors(t *testing.T) {
 	})
 
 	t.Run("array without Items", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"field": {
 				OneOf: []OneOf{Array},
 			},
@@ -1619,7 +1648,7 @@ func TestCompilationErrors(t *testing.T) {
 	})
 
 	t.Run("object without Properties", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"field": {
 				OneOf: []OneOf{Object},
 			},
@@ -1631,7 +1660,7 @@ func TestCompilationErrors(t *testing.T) {
 	})
 
 	t.Run("invalid OneOf value", func(t *testing.T) {
-		config := map[string]*FieldConfig{
+		config := map[string]*Field{
 			"field": {
 				OneOf: []OneOf{"invalid"},
 			},
@@ -1645,11 +1674,11 @@ func TestCompilationErrors(t *testing.T) {
 
 // FuzzValidate ensures Validate does not panic on arbitrary JSON input.
 func FuzzValidate(f *testing.F) {
-	schema, err := CompileConfig(map[string]*FieldConfig{
+	schema, err := CompileConfig(map[string]*Field{
 		"filter": {
 			OneOf:      []OneOf{Object},
 			AllowEmpty: true,
-			Properties: map[string]*FieldConfig{
+			Properties: map[string]*Field{
 				"gte": ScalarField(TypeString, false),
 				"lte": ScalarField(TypeString, false),
 			},
