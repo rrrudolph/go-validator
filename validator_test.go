@@ -556,7 +556,7 @@ func TestObjectBasic(t *testing.T) {
 		assertErrorContains(t, errs, "user", "cannot be empty object")
 	})
 
-	t.Run("object with only wrong keys does not get cannot be empty object", func(t *testing.T) {
+	t.Run("object with only wrong keys does not get 'cannot be empty object' error", func(t *testing.T) {
 		// Client sent keys (wrong/unknown) — we should get specific errors only, not "cannot be empty object".
 		input := map[string]any{
 			"user": map[string]any{"wrong_key": "value"},

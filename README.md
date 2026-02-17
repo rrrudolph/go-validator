@@ -1,143 +1,176 @@
 # go-validator
 
-Pre-compiled, flat schemas for validating API request bodies. Define your request shape, compile at startup, then validate raw JSON and get typed structs + stable error responses.
+A schema-based, pre-compiled request validator for Go APIs. Define schemas in code, compile once at startup, then validate JSON request bodies and get typed structs with stable, structured error output.
 
-The existing validation stuff out there is not customizable enough for our needs and leaves a lot of validation still needing to be done in handlers, which in our case means lots of copy paste code. Plus it's difficult to get beautiful error messages.
+---
 
-The underlying `Field` config looks more or less like jsonschema.
+## Why This Exists
 
-```go
-type Field struct {
-	OneOf                []OneOf                 // [Array, Object, Scalar]
-	ScalarType           ScalarType              // bool, string, custom date types, etc.
-	Items                *Field            // for arrays: config for each item
-	Properties           map[string]*Field // for objects: config for each property
-	AdditionalValidators []ValidatorFunc         // custom validation functions like gte/lte checks, min/max, etc.
-	StrEnumValues        []string                // only allow these string values
-	IntEnumValues        []int                   // only allow these integer values
-	Required             bool                    // default false
-	AllowEmpty           bool                    // empty, default false
-	Default              any                     // default value if field is missing or empty
-}
+Most Go validation libraries rely on struct tags and reflection at request time. While flexible, this can:
+
+- **Scatter validation logic** across many structs
+- **Make rules harder to reuse** (e.g. shared filter shapes)
+- **Produce inconsistent error formatting** across endpoints
+- **Repeat reflection work** on every request
+
+`go-validator` takes a different approach:
+
+1. **Define schemas explicitly** in code (nested objects, arrays, enums, ranges, defaults)
+2. **Compile them once** at startup into an optimized form
+3. **Reuse the compiled schema** for every request on that endpoint
+4. **Return stable, structured errors** with paths (e.g. `filter.submission_date.lte: invalid format`)
+
+That makes validation **explicit**, **centralized**, **reusable**, and **predictable**.
+
+
+## Installation
+
+```bash
+go get github.com/rrrudolph/go-validator
 ```
 
-But there are helper funcs to save a lot of the boilerplate, which makes a fairly clean interface.
+
+## How It Works
+
+### 1. Define a schema
+
+You describe each request body as a tree of `Field` configs: scalars, arrays, objects, enums, ranges, required/default, and custom validators. Helpers cut down boilerplate.
 
 ```go
-filtersConfig = map[string]*v.Field{
-	"submission_date": v.RangeOrArray(v.TypeDayOrMonthDate, "gte", "lte"),
-	"salary": 		   v.GteZeroRangeOrArray(v.TypeInteger, "gte", "lte"),
+package myapp
 
-	"lot_career_area":      v.ScalarArray(v.TypeInteger),
-	"lot_career_area_name": v.ScalarArray(v.TypeString),
+import v "github.com/rrrudolph/go-validator"
 
-	"is_certified":    v.ScalarField(v.TypeBoolean, false),
-}
-
-FilterConfig = v.Field{
-	OneOf:      []v.OneOf{v.Object},
-	Required:   true,
-	AllowEmpty: true,
-	Properties: filterProperties,
-}
-
-RecordsRequestConfig = map[string]*v.Field{
-	"filter": &FilterConfig,
-	"fields": {
-		OneOf: []v.OneOf{v.Array},
-		Items: &v.Field{
-			OneOf:         []v.OneOf{v.Scalar},
-			ScalarType:    v.TypeString,
-			StrEnumValues: GetAllRecordFields(),  // client implemented
+var (
+	filterConfig = v.Field{
+		OneOf:      []v.OneOf{v.Object},
+		Required:   true,
+		AllowEmpty: true,
+		Properties: map[string]*v.Field{
+			"submission_date": v.RangeOrArray(v.TypeDayOrMonthDate, "gte", "lte"),
+			"state":           v.ScalarArray(v.TypeString),
 		},
-		Default: DefaultRecordsFields,
-	},
-	"order": {
-		OneOf:         []v.OneOf{v.Scalar},
-		ScalarType:    v.TypeString,
-		StrEnumValues: []string{"score", "notice_date", "layoff_date"},
-		Default:       "score",
-	},
-	"limit": v.DefaultMinMaxInteger(10, 1, 100),
-}
+	}
+
+	RecordsRequestConfig = map[string]*v.Field{
+		"filter": &filterConfig,
+		"fields": {
+			OneOf: []v.OneOf{v.Array},
+			Items: &v.Field{
+				OneOf:         []v.OneOf{v.Scalar},
+				ScalarType:    v.TypeString,
+				StrEnumValues: getAllowedFields(), // your app’s list
+			},
+			Default: []any{"id", "state", "date"},
+		},
+		"limit": v.DefaultMinMaxInteger(10, 1, 100),
+	}
+
+	RecordsSchema = v.MustCompile("records", RecordsRequestConfig)
+)
 ```
 
-Configuration errors are caught at compile/startup. Use `v.MustCompile(name, config)` in `init()` — the name appears in the panic. `v.CompileConfig(config)` returns an error and exists for tests.
-```go
-func init() {
-	var RecordsSchema = v.MustCompile("records", RecordsRequestConfig)
-}
-```
+Invalid configs (e.g. array without `Items`) fail at compile time via `MustCompile`.
 
-Define a middleware function to call the validator.
+### 2. Use in a handler
+
+Validate the raw body, then decode into a typed struct. Return structured errors when validation fails.
 
 ```go
-// ValidateRequest validates the body, decodes into T, and sets the result on the context.
+// ValidateRequest is middleware: parse JSON, validate with schema, decode into T, set on context.
 func ValidateRequest[T any](schema *v.CompiledSchema) gin.HandlerFunc {
-	return func(gctx *gin.Context) {
+	return func(c *gin.Context) {
 		var raw map[string]any
-		if err := gctx.ShouldBindJSON(&raw); err != nil {
-			gctx.Error(apimodel.NewInvalidRequestError(err))
-			gctx.Abort()
+		if err := c.ShouldBindJSON(&raw); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.Abort()
 			return
 		}
 
 		validated, errs := schema.Validate(raw)
 		if len(errs) > 0 {
-			// This outputs the standard error format. For machine friendly response use errs.ToAPIResponse().
 			c.JSON(http.StatusBadRequest, errs.ToStandardErrors())
-			gctx.Abort()
+			c.Abort()
 			return
 		}
 
 		var req T
 		if err := v.DecodeValidated(validated, &req); err != nil {
-			gctx.Error(apimodel.NewInternalServerError(err))
-			gctx.Abort()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.Abort()
 			return
 		}
 
-		gctx.Set("validatedBody", &req)
-		gctx.Next()
+		c.Set("validatedBody", &req)
+		c.Next()
 	}
 }
-```
 
-
-Then register it in the router. All standard request bodies are defined as structs in the library.
-
-```go
-r.POST(
-	"/records",
-	lib.ValidateRequest[v.RecordsRequest](lib.RecordsSchema),
-	handler.Records
+// Register route with the schema and request type.
+r.POST("/records",
+	ValidateRequest[RecordsRequest](RecordsSchema),
+	handler.Records,
 )
 ```
 
-And behold, `errs.ToStandardErrors()`...
+In the handler, the body is already validated and typed:
+
+```go
+func (h *Handler) Records(c *gin.Context) {
+	req := c.MustGet("validatedBody").(*RecordsRequest)
+	// req.Filter, req.Fields, req.Limit are set; empty fields got defaults from schema
+}
+```
+
+### 3. Error response
+
+Validation errors are path + message. `ToStandardErrors()` turns them into a consistent API shape (e.g. status/title/detail with path in detail):
 
 ```json
 {
-    "errors": [
-        {
-            "status": 400,
-            "title": "Invalid Request",
-            "detail": "filter.submission_date.lte: invalid format (expected YYYY-MM-DD or YYYY-MM): \"2024\""
-        },
-        {
-            "status": 400,
-            "title": "Invalid Request",
-            "detail": "rank.extra_metrics[1]: must be one of: amended_petition, average_salary, ..."
-        }
-    ]
+  "errors": [
+    {
+      "status": 400,
+      "title": "Invalid Request",
+      "detail": "filter.submission_date.lte: invalid format (expected YYYY-MM-DD or YYYY-MM): \"2024\""
+    },
+    {
+      "status": 400,
+      "title": "Invalid Request",
+      "detail": "fields[1]: must be one of: id, state, date, ..."
+    }
+  ]
 }
 ```
 
-Get the request struct from the context.
+For machine-friendly path/message only, use `errs.ToAPIResponse()`. Date fields in validated output are strings (e.g. `"2024-01-15"`), so struct fields can be `string`.
 
-```go
-func (h *Handler) Records(gctx *gin.Context) {
-	req := gctx.MustGet("validatedBody").(*lib.RecordsRequest)
-}
-```
 
+## Design principles
+
+- **Compile once, validate many** — Schemas are compiled at startup into a form that avoids repeated reflection and config parsing on each request.
+- **Explicit over implicit** — Rules live in schema definitions, not struct tags, so they’re easy to review and reuse (e.g. shared filter config).
+- **Stable error format** — Errors are structured and path-based, so API clients get a predictable shape.
+- **Type-safe output** — Validated data is decoded into your structs via `DecodeValidated`; generics let the middleware stay type-safe per route.
+
+
+## Tradeoffs
+
+- **More upfront code** — You define schemas explicitly instead of relying on tags.
+- **Not a full JSON Schema engine** — Focused on API request bodies (nested objects/arrays/scalars, enums, ranges, defaults).
+- **Best for request validation** — Optimized for validating and decoding JSON request payloads, not general-purpose document validation.
+
+
+## When to use
+
+`go-validator` is a good fit when you:
+
+- Build JSON APIs and want **centralized** validation
+- Need **stable, structured error responses** with paths
+- Want to **reuse** rules (e.g. shared filter or pagination shape) across endpoints
+- Prefer **explicit schemas** over tag-based validation
+
+
+## Testing
+
+Schemas can be tested without HTTP: compile with `CompileConfig`, call `schema.Validate(map[string]any{...})`, and assert on the returned data and `ValidationErrors`. Invalid configs are caught at compile time or via `CompileConfig` in tests.

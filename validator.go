@@ -791,7 +791,6 @@ func validateObject(ctx *ValidationCtx, node gjson.Result, cf *CompiledField) ma
 	}
 
 	// Only report "cannot be empty object" when the client actually sent an empty object.
-	// If they sent keys (wrong or unknown), we already have more specific errors.
 	var inputKeyCount int
 	node.ForEach(func(_, _ gjson.Result) bool { inputKeyCount++; return true })
 	if inputKeyCount == 0 && cf.Default == nil && !cf.AllowEmpty {
